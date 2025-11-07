@@ -961,4 +961,6 @@ t_sync.start()
 start_hit_background()
 logger.info("App upgraded ML starting on port %d", PORT)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT)
+    port = int(os.environ.get("PORT", 10000))
+    logger.info("App upgraded ML starting on port %d", port)
+    app.run(host="0.0.0.0", port=port)
