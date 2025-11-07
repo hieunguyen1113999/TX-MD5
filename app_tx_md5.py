@@ -958,9 +958,8 @@ t_teacher.start()
 # --- Thêm luồng tự động đồng bộ dữ liệu từ hit.py ---
 t_sync = threading.Thread(target=sync_hit_data_loop, daemon=True)
 t_sync.start()
-start_hit_background()
-logger.info("App upgraded ML starting on port %d", PORT)
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    logger.info("App upgraded ML starting on port %d", port)
-    app.run(host="0.0.0.0", port=port)
+    start_hit_background()
+    port = int(os.environ.get("PORT", 10000))  # Render sẽ truyền PORT
+    logger.info("🚀 App starting on port %d", port)
+    app.run(host="0.0.0.0", port=port, debug=False)
