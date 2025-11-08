@@ -662,8 +662,7 @@ FRONTEND_HTML = r"""
   </div>
 
 <script>
-const API = "http://127.0.0.1:5000/api/status";
-
+const API = window.location.origin + "/api/status";
 document.querySelectorAll('.tab').forEach(tab=>{
   tab.onclick = ()=>{
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
