@@ -770,12 +770,15 @@ def root():
 @app.route("/api/status")
 def api_status():
     try:
-        # --- Lấy dữ liệu thật từ API hit.py ---
-        tx_data = requests.get("http://127.0.0.1:8000/api/taixiu", timeout=3).json()
-        md5_data = requests.get("http://127.0.0.1:8000/api/taixiumd5", timeout=3).json()
+        # --- Lấy dữ liệu thật từ API nội bộ (Render hoặc local đều chạy được) ---
+        port = int(os.environ.get("PORT", 10000))
+        base = f"http://127.0.0.1:{port}"
+
+        tx_data = requests.get(base + "/api/taixiu", timeout=3).json()
+        md5_data = requests.get(base + "/api/taixiumd5", timeout=3).json()
 
         # --- Lấy lịch sử (10 phiên gần nhất) ---
-        hist_data = requests.get("http://127.0.0.1:8000/api/history", timeout=3).json()
+        hist_data = requests.get(base + "/api/history", timeout=3).json()
         history_100 = hist_data.get("taixiu", [])[:10]
         history_101 = hist_data.get("taixiumd5", [])[:10]
 
