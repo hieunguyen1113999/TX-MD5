@@ -6,4 +6,4 @@ scikit-learn
 lightgbm
 xgboost
 requests
-
+gunicorn>=21.0.0
