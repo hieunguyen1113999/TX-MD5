@@ -975,6 +975,8 @@ def sync_hit_data_loop():
             logger.exception("sync_hit_data_loop lỗi")
             time.sleep(10)
 # --- Start background threads ---
+start_hit_background()  # ✅ Khởi động hit.py threads
+
 t_db = threading.Thread(target=db_watcher_loop, daemon=True)
 t_db.start()
 
@@ -984,11 +986,4 @@ t_teacher.start()
 t_sync = threading.Thread(target=sync_hit_data_loop, daemon=True)
 t_sync.start()
 
-if __name__ == "__main__":
-    # Khởi động nền hit.py và Flask server
-    start_hit_background()
-    port = int(os.environ.get("PORT", 10000))  # Render sẽ truyền PORT
-    logger.info("🚀 App starting on port %d", port)
-    app.run(host="0.0.0.0", port=port, debug=False)
-
-
+logger.info("✅ All background threads started")
