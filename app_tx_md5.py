@@ -770,10 +770,9 @@ def root():
 @app.route("/api/status")
 def api_status():
     try:
-        # --- Lấy dữ liệu thật từ API nội bộ (Render hoặc local đều chạy được) ---
-        port = int(os.environ.get("PORT", 10000))
-        base = f"http://127.0.0.1:{port}"
-
+        # ✅ Dùng 127.0.0.1 (localhost) để gọi API nội bộ
+        base = f"http://127.0.0.1:{PORT}"
+        
         def safe_get_json(url):
             try:
                 r = requests.get(url, timeout=3)
@@ -785,6 +784,12 @@ def api_status():
             except Exception as e:
                 logger.warning(f"Không lấy được {url}: {e}")
                 return {}
+      
+        # --- Gọi 3 API con ---
+        tx_data = safe_get_json(base + "/api/taixiu")
+        md5_data = safe_get_json(base + "/api/taixiumd5")
+        hist_data = safe_get_json(base + "/api/history")
+        
 
         # --- Gọi 3 API con, tránh crash khi rỗng ---
         tx_data = safe_get_json(base + "/api/taixiu")
