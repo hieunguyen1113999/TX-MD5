@@ -1,1 +1,8 @@
-bây giờ nhé bạn để nó tự nâng cao khả năng dự đoán dựa trên học tập phiên cũ và nhận diện cầu bệt hay như nào đó , sau đó nó sẽ học hỏi them dựa trên kết quả mới
+services:
+  - type: web
+    name: tx-md5-predict
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --preload app_tx_md5_upgraded:app
