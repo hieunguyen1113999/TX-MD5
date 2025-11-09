@@ -774,13 +774,31 @@ def api_status():
         port = int(os.environ.get("PORT", 10000))
         base = f"http://127.0.0.1:{port}"
 
-        tx_data = requests.get(base + "/api/taixiu", timeout=3).json()
-        md5_data = requests.get(base + "/api/taixiumd5", timeout=3).json()
+        def safe_get_json(url):
+            try:
+                r = requests.get(url, timeout=3)
+                if r.status_code == 200:
+                    return r.json()
+                else:
+                    logger.warning(f"Lỗi {r.status_code} khi gọi {url}")
+                    return {}
+            except Exception as e:
+                logger.warning(f"Không lấy được {url}: {e}")
+                return {}
 
-        # --- Lấy lịch sử (10 phiên gần nhất) ---
-        hist_data = requests.get(base + "/api/history", timeout=3).json()
-        history_100 = hist_data.get("taixiu", [])[:10]
-        history_101 = hist_data.get("taixiumd5", [])[:10]
+        # --- Gọi 3 API con, tránh crash khi rỗng ---
+        tx_data = safe_get_json(base + "/api/taixiu")
+        md5_data = safe_get_json(base + "/api/taixiumd5")
+        hist_data = safe_get_json(base + "/api/history")
+
+        history_100 = hist_data.get("taixiu", []) if isinstance(hist_data, dict) else []
+        history_101 = hist_data.get("taixiumd5", []) if isinstance(hist_data, dict) else []
+
+        # Nếu lịch sử chưa có thì thêm mẫu trống
+        if not history_100:
+            history_100 = [tx_data]
+        if not history_101:
+            history_101 = [md5_data]
 
         # --- Chuyển lịch sử thành chuỗi T/X ---
         def to_TX(history):
