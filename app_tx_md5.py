@@ -975,15 +975,48 @@ def sync_hit_data_loop():
             logger.exception("sync_hit_data_loop lỗi")
             time.sleep(10)
 # --- Start background threads ---
-start_hit_background()  # ✅ Khởi động hit.py threads
+# --- Thêm hàm để khởi background threads thủ công (không tự động khi import) ---
+_background_started = False
 
-t_db = threading.Thread(target=db_watcher_loop, daemon=True)
-t_db.start()
+def start_background_threads():
+    """
+    Khởi tất cả các background threads. Gọi thủ công:
+      - khi chạy local: gọi trong if __name__ == '__main__'
+      - khi dùng Gunicorn + post_fork: import & gọi trong post_fork hook
+    """
+    global _background_started
+    if _background_started:
+        logger.info("Background threads already started, skipping.")
+        return
+    try:
+        # Start hit/polling threads (được định nghĩa ở trên)
+        start_hit_background()
 
-t_teacher = threading.Thread(target=teacher_manager_loop, daemon=True)
-t_teacher.start()
+        # DB watcher
+        t_db = threading.Thread(target=db_watcher_loop, daemon=True)
+        t_db.start()
 
-t_sync = threading.Thread(target=sync_hit_data_loop, daemon=True)
-t_sync.start()
+        # Teacher manager
+        t_teacher = threading.Thread(target=teacher_manager_loop, daemon=True)
+        t_teacher.start()
 
-logger.info("✅ All background threads started")
+        # Sync thread
+        t_sync = threading.Thread(target=sync_hit_data_loop, daemon=True)
+        t_sync.start()
+
+        _background_started = True
+        logger.info("✅ Background threads started (manual start_background_threads())")
+    except Exception:
+        logger.exception("Failed to start background threads")
+
+# --- Entry point an toàn khi chạy trực tiếp (local/dev) ---
+if __name__ == "__main__":
+    import os
+    PORT = int(os.environ.get("PORT", 5000))
+    logger.info(f"Starting Flask app on 0.0.0.0:{PORT}")
+
+    # Start background threads trong tiến trình hiện tại (local run)
+    start_background_threads()
+
+    # Run Flask dev server cho local; use_reloader=False tránh spawn lại process/reloader
+    app.run(host="0.0.0.0", port=PORT, threaded=True, debug=False, use_reloader=False)
