@@ -1,30 +1,27 @@
 #!/usr/bin/env python3
 # coding: utf-8
 """
-app_tx_md5_upgraded.py
-Single-file upgraded app (keeps API endpoints compatible) with:
- - Hybrid ML (SGD + LightGBM + LSTM/Transformer) retained
- - Adds Transformer AutoEncoder (teacher) for long-range patterns (seq_len=100)
- - Adds online Reinforcement updates (policy/student MLP) on each new record
- - Adds periodic teacher training + distillation to produce lightweight student for realtime
- - Does NOT change API routes/format (keeps /api/status, /api/history, /api/taixiu, /api/taixiumd5)
-
-Run:
-    py app_tx_md5_upgraded.py
-or
-    python app_tx_md5_upgraded.py
-
-Dependencies: numpy, torch, scikit-learn, lightgbm, xgboost (optional), flask, joblib, pandas
+app_tx_md5.py
+Single-file app with background threads refactored so threads are started
+manually via start_background_threads() to be compatible with Gunicorn.
 """
-import os, sys, time, threading, logging, sqlite3, json, random
+import os
+import sys
+import time
+import threading
+import logging
+import sqlite3
+import json
+import random
 from pathlib import Path
 from flask import Flask, jsonify, request
 import numpy as np
 import torch, torch.nn as nn, torch.optim as optim
 import requests
 from thuattoan8_indented import lookup_pattern_predict, detect_cau
-from flask import Flask, jsonify, request
+
 app = Flask(__name__)
+
 # =========================
 # Biến toàn cục lưu tiến độ huấn luyện mô hình
 # =========================
@@ -40,7 +37,6 @@ def fetch_and_store_latest_result(channel="tx"):
         d3 = int(data.get("Xuc_xac_3", 0))
         tong = int(data.get("Tong", d1 + d2 + d3))
         ket_qua = str(data.get("Ket_qua", "Chưa rõ"))
-        ...
         # kiểm tra trùng lặp phiên
         cur = DB_CONN.cursor()
         cur.execute("SELECT COUNT(*) FROM history WHERE phien=? AND channel=?", (phien, channel))
@@ -59,11 +55,12 @@ def fetch_and_store_latest_result(channel="tx"):
 
 def get_realtime_result(source="tx"):
     return latest_result_100 if source == "tx" else latest_result_101
+
 # ========== BẮT ĐẦU KHỐI GỘP TỪ hit.py ==========
-import json
-import threading
-import time
-import logging
+import json as _json
+import threading as _threading
+import time as _time
+import logging as _logging
 from urllib.request import urlopen, Request
 
 lock_100 = threading.Lock()
@@ -91,7 +88,7 @@ def poll_api(gid, lock, result_store, history, is_md5):
         try:
             req = Request(url, headers={'User-Agent': 'Python-Proxy/1.0'})
             with urlopen(req, timeout=10) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
+                data = _json.loads(resp.read().decode('utf-8'))
             if data.get('status') == 'OK' and isinstance(data.get('data'), list):
                 for game in data['data']:
                     cmd = game.get("cmd")
@@ -225,6 +222,7 @@ def context_from_row_tuple(row):
         last = 1.0 if str(row[-1]).lower().startswith("t") else 0.0
         d1=d2=d3=tong=0.0
     return np.array([last, d1, d2, d3, tong] + [0]*9, dtype=np.float32)  # 14-dim
+
 def build_context_seq(channel, length=10):
     """
     Tạo vector biểu diễn chuỗi kết quả gần nhất để model thấy được pattern tuần tự.
@@ -242,6 +240,7 @@ def build_context_seq(channel, length=10):
     # ✅ Đệm thêm 4 giá trị 0 cho khớp kích thước 14 đầu vào của StudentMLP
     seq = np.concatenate([np.array(seq, dtype=np.float32), np.zeros(4, dtype=np.float32)])
     return seq
+
 # --- Lightweight online policy (student) ---
 class StudentMLP(nn.Module):
     def __init__(self, input_dim=14, hidden=128):
@@ -436,8 +435,6 @@ def train_teacher_inprocess(channel="tx", seq_len=SEQ_LEN, epochs=3):
         logger.exception("Teacher training failed %s", channel)
         return None
 
-
-
 # --- Online REINFORCE-style update on student per new record ---
 def online_update_student(ch, context_vec, true_label):
     try:
@@ -487,6 +484,7 @@ def on_new_record_inserted(row):
 
     except Exception:
         logger.exception("on_new_record_inserted error")
+
 def check_prediction_accuracy(channel):
     """Kiểm tra độ chính xác dự đoán so với kết quả thật trong DB"""
     try:
@@ -516,6 +514,7 @@ def check_prediction_accuracy(channel):
     except Exception:
         logger.exception("check_prediction_accuracy error")
         return {"accuracy": 0.0, "correct": 0, "total": 0}
+
 # --- Monitor DB for new records thread ---
 processed_ids = set()
 def db_watcher_loop(interval=3):
@@ -764,15 +763,16 @@ setInterval(refresh, 5000);
 @app.route("/")
 def root():
     return FRONTEND_HTML
+
 # --- Flask API (keeps compatibility with previous app) ---
 # ====================== KIỂM CHỨNG DỰ ĐOÁN & API STATUS ======================
 
 @app.route("/api/status")
 def api_status():
     try:
-        # ✅ Dùng 127.0.0.1 (localhost) để gọi API nội bộ
+        # ✅ Dùng 127.0.0.1 (localhost) để gọi API nội bộ khi cần
         base = f"http://127.0.0.1:{PORT}"
-        
+
         def safe_get_json(url):
             try:
                 r = requests.get(url, timeout=3)
@@ -784,14 +784,8 @@ def api_status():
             except Exception as e:
                 logger.warning(f"Không lấy được {url}: {e}")
                 return {}
-      
-        # --- Gọi 3 API con ---
-        tx_data = safe_get_json(base + "/api/taixiu")
-        md5_data = safe_get_json(base + "/api/taixiumd5")
-        hist_data = safe_get_json(base + "/api/history")
-        
 
-        # --- Gọi 3 API con, tránh crash khi rỗng ---
+        # --- Gọi 3 API con ---
         tx_data = safe_get_json(base + "/api/taixiu")
         md5_data = safe_get_json(base + "/api/taixiumd5")
         hist_data = safe_get_json(base + "/api/history")
@@ -964,6 +958,7 @@ def api_taixiumd5():
     if not r:
         return jsonify({"Phien":0,"Xuc_xac_1":0,"Xuc_xac_2":0,"Xuc_xac_3":0,"Tong":0,"Ket_qua":"Chưa có"})
     return jsonify({"Phien":r[0],"Xuc_xac_1":r[1],"Xuc_xac_2":r[2],"Xuc_xac_3":r[3],"Tong":r[4],"Ket_qua":r[5]})
+
 def sync_hit_data_loop():
     """Luồng tự động lấy dữ liệu thật từ hit.py mỗi 5 giây"""
     while True:
@@ -974,7 +969,7 @@ def sync_hit_data_loop():
         except Exception:
             logger.exception("sync_hit_data_loop lỗi")
             time.sleep(10)
-# --- Start background threads ---
+
 # --- Thêm hàm để khởi background threads thủ công (không tự động khi import) ---
 _background_started = False
 
@@ -1008,6 +1003,9 @@ def start_background_threads():
         logger.info("✅ Background threads started (manual start_background_threads())")
     except Exception:
         logger.exception("Failed to start background threads")
+
+# --- IMPORTANT: Nếu trước đây bạn có gọi start_hit_background() / tạo các thread tại import,
+# hãy xoá/comment các dòng đó để tránh threads khởi 2 lần. ---
 
 # --- Entry point an toàn khi chạy trực tiếp (local/dev) ---
 if __name__ == "__main__":
