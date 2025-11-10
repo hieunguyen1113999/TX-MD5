@@ -1,0 +1,21 @@
+# Python / git
+__pycache__/
+*.pyc
+.git/
+.env
+.venv/
+.pytest_cache/
+
+# Large data / models that you don't want baked into image
+data/
+models/
+*.sqlite
+*.db
+*.pth
+*.pt
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+logs/
