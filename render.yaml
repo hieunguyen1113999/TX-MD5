@@ -5,4 +5,4 @@ services:
     plan: free
     region: singapore
     buildCommand: pip install -r requirements.txt
-    startCommand: "gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --preload app_tx_md5_upgraded:app"  
+    startCommand: "gunicorn app_tx_md5:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120"
